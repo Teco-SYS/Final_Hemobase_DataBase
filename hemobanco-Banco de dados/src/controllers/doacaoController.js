@@ -2,8 +2,17 @@ const doacaoModel = require("../models/doacaoModel")
 const doadorModel = require("../models/doadorModel")
 const situacaoModel = require("../models/situacaoModel")
 
-// intervalo mínimo (em dias) entre doações, por sexo do doador
-const INTERVALO_MINIMO_DIAS = { M: 60, F: 90 }
+function formatarDataBR(valor) {
+    if (!valor) return ""
+    const s = String(valor)
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (m) return `${m[3]}-${m[2]}-${m[1]}`
+    return s
+}
+
+
+// intervalo mínimo entre doações: 4 meses (~120 dias) para todos
+const INTERVALO_MINIMO_DIAS = 120
 
 async function listarTodos(req, res) {
     const doacoes = await doacaoModel.listarTodos()
@@ -41,18 +50,18 @@ async function criar(req, res) {
         )
         if (situacao) {
             return res.status(400).json({
-                error: `Doador está bloqueado para doação: ${situacao.motivo || situacao.descricao}${situacao.data_limite ? ` (até ${situacao.data_limite})` : ""}`
+                error: `Doador está bloqueado para doação${situacao.data_limite ? ` (até ${formatarDataBR(situacao.data_limite)})` : ''}`
             })
         }    
 
         const ultimaDoacao = await doacaoModel.buscarUltimaDoacaoDoDoador(doador_id)
         if (ultimaDoacao) {
-            const diasMinimos = INTERVALO_MINIMO_DIAS[doador.sexo] || 60
+            const diasMinimos = INTERVALO_MINIMO_DIAS
             const diasDesdeUltima = (new Date(data_doacao) - new Date(ultimaDoacao.data_doacao)) / (1000 * 60 * 60 * 24)
 
             if (diasDesdeUltima < diasMinimos) {
                 return res.status(400).json({
-                    error: `Doador precisa aguardar ${diasMinimos} dias entre doações. Última doação foi há ${Math.floor(diasDesdeUltima)} dia(s).`
+                    error: `Intervalo mínimo de 4 meses entre doações. Faltam ${Math.ceil(diasMinimos - diasDesdeUltima)} dia(s) (última doação há ${Math.floor(diasDesdeUltima)} dia(s)).`
                 })
             }
         }
